@@ -391,11 +391,13 @@ private def handleAccessAlarmReport(cmd) {
 			map.data = [ method: "manual" ]
 			break
 		case 3: // Locked by command
-			map.descriptionText = "Locked"
+        	// For August Smart Lock Pro, locking via Bluetooth in app or HomeKit also counts towards this
+			map.descriptionText = "Locked by Z-Wave/Bluetooth"
 			map.data = [ method: "command" ]
 			break
 		case 4: // Unlocked by command
-			map.descriptionText = "Unlocked"
+        	// For August Smart Lock Pro, unlocking via Bluetooth in app or HomeKit also counts towards this
+			map.descriptionText = "Unlocked by Z-Wave/Bluetooth"
 			map.data = [ method: "command" ]
 			break
 		case 5: // Locked with keypad
