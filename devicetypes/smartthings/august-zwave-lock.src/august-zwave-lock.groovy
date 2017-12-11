@@ -103,6 +103,8 @@ import physicalgraph.zwave.commands.usercodev1.*
 def installed() {
 	// Device-Watch pings if no device events received for 1 hour (checkInterval)
 	sendEvent(name: "checkInterval", value: 1 * 60 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID, offlinePingable: "1"])
+    // Initialize the updateByLockCommandClass variable, when enabled, lock state is updated by Z-Wave Lock Command Class, otherwise rely on Z-Wave Notification Command Class to update lock state
+    state.updateByLockCommandClass = true
 }
 
 /**
@@ -166,6 +168,7 @@ def doConfigure() {
 	log.trace "[DTH] Executing 'doConfigure()' for device ${device.displayName}"
 	state.configured = true
 	def cmds = []
+    state.updateByLockCommandClass = true
 	cmds << secure(zwave.doorLockV1.doorLockOperationGet())
 	cmds << secure(zwave.batteryV1.batteryGet())
 	if (isSchlageLock()) {
@@ -205,6 +208,14 @@ def parse(String description) {
 		if (cmd) {
 			result = zwaveEvent(cmd)
 		}
+        /* Normally, rely on Notification Command Class to update lock state, as it has richer data.
+           However, for ping/poll/refresh/etc, smartthings wants to update the lock state explicityly
+           via Lock Command CLass, in such cases generate an event */
+        if (cmd && cmd.commandClassIdentifier == 98 && !state.updateByLockCommandClass) {
+        	result = null
+            // Disable state updating from Z-Wave Lock Command Class message
+            state.updateByLockCommandClass = false
+        }
 	}
 	log.info "[DTH] parse() - returning result=$result"
 	result
@@ -1076,6 +1087,7 @@ def unlockWithTimeout() {
 def ping() {
 	log.trace "[DTH] Executing ping() for device ${device.displayName}"
 	runIn(30, followupStateCheck)
+    state.updateByLockCommandClass = true
 	secure(zwave.doorLockV1.doorLockOperationGet())
 }
 
@@ -1091,6 +1103,7 @@ def followupStateCheck() {
  * Checks the door lock state
  */
 def stateCheck() {
+	state.updateByLockCommandClass = true
 	sendHubCommand(new physicalgraph.device.HubAction(secure(zwave.doorLockV1.doorLockOperationGet())))
 }
 
@@ -1100,6 +1113,7 @@ def stateCheck() {
 def refresh() {
 	log.trace "[DTH] Executing refresh() for device ${device.displayName}"
 
+	state.updateByLockCommandClass = true
 	def cmds = secureSequence([zwave.doorLockV1.doorLockOperationGet(), zwave.batteryV1.batteryGet()])
 	if (!state.associationQuery) {
 		cmds << "delay 4200"
@@ -1126,6 +1140,7 @@ def poll() {
 	// Only check lock state if it changed recently or we haven't had an update in an hour
 	def latest = device.currentState("lock")?.date?.time
 	if (!latest || !secondsPast(latest, 6 * 60) || secondsPast(state.lastPoll, 55 * 60)) {
+    	state.updateByLockCommandClass = true
 		cmds << secure(zwave.doorLockV1.doorLockOperationGet())
 		state.lastPoll = now()
 	} else if (!state.lastbatt || now() - state.lastbatt > 53*60*60*1000) {
@@ -1143,6 +1158,7 @@ def poll() {
 	} else {
 		// Only check lock state once per hour
 		if (secondsPast(state.lastPoll, 55 * 60)) {
+        	state.updateByLockCommandClass = true
 			cmds << secure(zwave.doorLockV1.doorLockOperationGet())
 			state.lastPoll = now()
 		} else if (!state.MSR) {
