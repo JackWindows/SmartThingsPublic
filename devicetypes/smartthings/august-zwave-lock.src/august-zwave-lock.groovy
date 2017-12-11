@@ -1043,10 +1043,7 @@ def zwaveEvent(physicalgraph.zwave.Command cmd) {
  * Executes lock and then check command with a delay on a lock
  */
 def lockAndCheck(doorLockMode) {
-	secureSequence([
-		zwave.doorLockV1.doorLockOperationSet(doorLockMode: doorLockMode),
-		zwave.doorLockV1.doorLockOperationGet()
-	], 4200)
+    secure(zwave.doorLockV1.doorLockOperationSet(doorLockMode: doorLockMode))
 }
 
 /**
